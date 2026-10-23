@@ -185,6 +185,10 @@
   labels();
   window.CandyAudio = {
     unlock, effect,
+    lifeReward(){
+      if(!effectsEnabled||!context||context.state!=='running')return;
+      [72,76,79,84].forEach((midi,i)=>note(midi,context.currentTime+i*.1,.25,.1,'triangle',fxBus,false));
+    },
     combo(count) {
       lastComboMidi = comboNotes[Math.min(4,Math.max(0,count-1))];
       if (!effectsEnabled || !context || context.state !== 'running') return;

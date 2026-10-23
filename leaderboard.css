@@ -10,6 +10,8 @@
 .leaderboard-heading button{flex-shrink:0;width:40px;height:40px;border-radius:50%;font-size:26px;background:#ffffff0a}
 .leaderboard-score{padding:9px 12px;margin:0 0 12px;border-radius:8px;background:#ffffff07;font-size:14px;color:#c3f1dc}
 .leaderboard-table{width:100%;border-collapse:collapse;table-layout:fixed;font-variant-numeric:tabular-nums}
+.leaderboard-table-wrap{max-height:250px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.leaderboard-table-wrap thead th{position:sticky;top:0;background:#2b203c;z-index:1}
 .leaderboard-table th{color:#c8b6d7;font-size:12px;font-weight:500;padding:7px 4px;text-align:left;border-bottom:1px solid #ffffff22}
 .leaderboard-table th:first-child{width:43px}
 .leaderboard-table th:last-child{width:100px;text-align:right}

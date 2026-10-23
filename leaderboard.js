@@ -17,12 +17,13 @@
   panel.setAttribute('aria-labelledby', 'leaderboardTitle');
   panel.innerHTML = `
     <div class="leaderboard-card">
-      <div class="leaderboard-heading"><div><small>TOP 5 · CANDY RICOCHET</small><h2 id="leaderboardTitle">分數排行榜</h2></div><button id="leaderboardClose" aria-label="關閉排行榜">×</button></div>
+      <div class="leaderboard-heading"><div><small>TOP 10 · CANDY RICOCHET</small><h2 id="leaderboardTitle">分數排行榜</h2></div><button id="leaderboardClose" aria-label="關閉排行榜">×</button></div>
       <p id="leaderboardScore" class="leaderboard-score" hidden></p>
-      <table class="leaderboard-table"><caption class="sr-only">最高五筆分數，同分時先登錄者在前</caption><thead><tr><th scope="col">名次</th><th scope="col">名字</th><th scope="col">分數</th></tr></thead><tbody id="leaderboardRows"></tbody></table>
+      <div class="leaderboard-table-wrap" tabindex="0" role="region" aria-label="排行榜，可捲動查看前十名"><table class="leaderboard-table"><caption class="sr-only">最高十筆分數，同分時先登錄者在前</caption><thead><tr><th scope="col">名次</th><th scope="col">名字</th><th scope="col">分數</th></tr></thead><tbody id="leaderboardRows"></tbody></table></div>
       <p id="leaderboardStatus" class="leaderboard-status" role="status" aria-live="polite"></p>
+      <p id="leaderboardBackendNotice" class="leaderboard-status error" hidden></p>
       <form id="leaderboardForm" hidden>
-        <label for="leaderboardName">進入前五名！留下你的名字</label>
+        <label for="leaderboardName">進入前十名！留下你的名字</label>
         <div class="leaderboard-inputs"><input id="leaderboardName" name="nickname" type="text" maxlength="24" autocomplete="off" placeholder="輸入名字" aria-describedby="leaderboardNameHelp"><button id="leaderboardSubmit" type="submit">登錄</button></div>
         <small id="leaderboardNameHelp">限 1～12 字；登錄後名字與分數會公開顯示。</small>
       </form>
@@ -31,6 +32,7 @@
     </div>`;
   document.querySelector('.screen').appendChild(panel);
 
+  let serverLimit = 10;
   let currentRun = null, entries = [], loaded = false, loading = false, saving = false;
   let generation = 0, controller = null, returnFocus = null, ambiguous = false;
 
@@ -40,28 +42,42 @@
   }
 
   function validEntries(value) {
-    if (!Array.isArray(value) || value.length > 5 || value.some(e => !e || typeof e.name !== 'string' || e.name.length > 100 || !Number.isSafeInteger(e.score) || e.score <= 0)) {
+    if (!Array.isArray(value) || value.length > 10 || value.some(e => !e || typeof e.name !== 'string' || e.name.length > 100 || !Number.isSafeInteger(e.score) || e.score <= 0)) {
       throw new Error('排行榜回傳格式不正確，請稍後重試。');
     }
     return value.map(e => ({name: e.name, score: e.score})).sort((a, b) => b.score - a.score);
   }
 
   async function request(params, signal) {
-    const response = await fetch(ENDPOINT, {
-      method: params ? 'POST' : 'GET',
-      credentials: 'omit',
-      redirect: 'follow',
-      signal,
-      ...(params ? {body: new URLSearchParams(params)} : {})
-    });
-    if (!response.ok) throw new Error('無法連線排行榜，請稍後再試。');
-    const result = await response.json();
+    let response;
+    for(let attempt=0;attempt<(params?1:2);attempt++){
+      try{
+        response = await fetch(ENDPOINT, {
+          method: params ? 'POST' : 'GET',
+          credentials: 'omit',
+          redirect: 'follow',
+          signal,
+          ...(params ? {body: new URLSearchParams(params)} : {})
+        });
+        if(!response.ok){const error=new Error(`Google 排行榜服務回應異常（HTTP ${response.status}），請稍後重新整理。`);error.temporary=response.status>=500||response.status===429;throw error;}
+        break;
+      }catch(error){
+        if(params||attempt===1||signal.aborted||!(error instanceof TypeError||error.temporary))throw error;
+        await new Promise(resolve=>setTimeout(resolve,600));
+        if(signal.aborted)throw new DOMException('Aborted','AbortError');
+      }
+    }
+    let result;
+    try{result=await response.json();}catch{throw new Error('Google 回傳的不是排行榜資料；請確認 Apps Script 部署允許「任何人」存取，且使用 /exec 網址。');}
     if (!result || result.ok !== true) {
       const error = new Error(result?.error || '排行榜暫時無法使用。');
       error.rejected = true;
       throw error;
     }
     result.entries = validEntries(result.entries);
+    serverLimit = result.limit === 10 ? 10 : 5;
+    $('leaderboardBackendNotice').hidden = serverLimit === 10;
+    $('leaderboardBackendNotice').textContent = serverLimit === 10 ? '' : 'Google 排行榜後端尚待更新，目前仍僅保存前 5 名。';
     return result;
   }
 
@@ -90,7 +106,7 @@
 
   function eligible() {
     return loaded && currentRun && currentRun.score > 0 && !currentRun.submitted &&
-      (entries.length < 5 || currentRun.score > entries[4].score);
+      (entries.length < serverLimit || currentRun.score > entries[serverLimit-1].score);
   }
 
   function controls() {
@@ -106,11 +122,11 @@
   }
 
   function summary() {
-    if (currentRun?.submitted) return currentRun.accepted ? '本局已完成登錄，可以再挑戰更高分！' : '本局提交時未進入前五名，下一次再挑戰！';
+    if (currentRun?.submitted) return currentRun.accepted ? '本局已完成登錄，可以再挑戰更高分！' : '本局提交時未進入前十名，下一次再挑戰！';
     if (ambiguous) return '尚未確認送出結果，可用相同資料重試；不要重新開局後重送。';
-    if (eligible()) return '恭喜進入前五名！你可以登錄名字，或直接返回。';
+    if (eligible()) return '恭喜進入前十名！你可以登錄名字，或直接返回。';
     if (currentRun?.score === 0) return '本局尚未得分，再試一次吧！';
-    if (currentRun) return '本局未進入前五名，下一次再挑戰！';
+    if (currentRun) return '本局未進入前十名，下一次再挑戰！';
     return '挑戰高分，留下你的名字。';
   }
 
@@ -133,11 +149,12 @@
       renderRows();
       status(summary());
       if(autoPrompt && eligible() && panel.hidden) showPanel();
-      if(autoPrompt) openButton.textContent=eligible()?'♛ 進入前五名 · 留下名字':'♛ 查看分數排行榜';
+      if(autoPrompt) openButton.textContent=eligible()?'♛ 進入前十名 · 留下名字':'♛ 查看分數排行榜';
     } catch (error) {
       if (version !== generation) return;
       loaded = false;
-      status('排行榜連線失敗。請確認網路後，按「重新整理」再試。', true);
+      const detail = error.name==='AbortError' ? '讀取 Google 排行榜逾時，請稍後按「重新整理」。' : error instanceof TypeError ? '無法連線 Google 排行榜，請確認網路、內容阻擋設定，或切換 Wi-Fi／行動網路後再試。' : error.message;
+      status('排行榜連線失敗：'+detail, true);
       if(autoPrompt) openButton.textContent='♛ 排行榜連線失敗 · 點此重試';
     } finally {
       clearTimeout(timeout);
@@ -165,14 +182,14 @@
     try {
       const result = await request({name, score: String(run.score), runId: run.id}, activeController.signal);
       if (version !== generation) return;
-      if (typeof result.qualified !== 'boolean' || (result.qualified && (!Number.isInteger(result.rank) || result.rank < 1 || result.rank > 5))) throw new Error('登錄回應格式不正確。');
+      if (typeof result.qualified !== 'boolean' || (result.qualified && (!Number.isInteger(result.rank) || result.rank < 1 || result.rank > 10))) throw new Error('登錄回應格式不正確。');
       entries = result.entries;
       loaded = true;
       ambiguous = false;
       run.submitted = true;
       run.accepted = result.qualified;
       renderRows();
-      status(result.qualified ? `登錄成功！本次排名第 ${result.rank} 名。` : '榜單剛剛更新，本次未進入前五名。再挑戰一次吧！');
+      status(result.qualified ? `登錄成功！本次排名第 ${result.rank} 名。` : '榜單剛剛更新，本次未進入前十名。再挑戰一次吧！');
     } catch (error) {
       if (version !== generation) return;
       ambiguous = !error.rejected;
@@ -213,7 +230,7 @@
   panel.addEventListener('keydown', event => {
     if (event.key === 'Escape') {event.preventDefault(); close();}
     if (event.key !== 'Tab') return;
-    const items = [...panel.querySelectorAll('button,input')].filter(el => !el.disabled && el.getClientRects().length);
+    const items = [...panel.querySelectorAll('button,input,[tabindex]')].filter(el => !el.disabled && el.getClientRects().length);
     const first = items[0], last = items[items.length - 1];
     if (!first) {event.preventDefault(); return;}
     if (event.shiftKey && document.activeElement === first) {event.preventDefault(); last.focus();}
@@ -241,7 +258,7 @@
       ambiguous = false;
       openButton.hidden = false;
       loaded = false;
-      if(score>0){openButton.textContent='♛ 正在檢查前五名…';refresh(true);}
+      if(score>0){openButton.textContent='♛ 正在檢查前十名…';refresh(true);}
     }
   };
 })();
