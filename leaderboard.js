@@ -1,6 +1,8 @@
 /* Public leaderboard endpoint. No Google credentials belong in browser code. */
 (() => {
   'use strict';
+  // Test runs never initialize leaderboard controls or submit scores.
+  if(new URLSearchParams(window.location.search).get('dev')==='1')return;
   const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxAWbd9OvFaF4oyitcb9pHOIPUtZOEyZrxVkkCKc8r4fvbADUt8P6HcnmXAmSQ01e0F/exec';
   const $ = id => document.getElementById(id);
   const openButton = document.createElement('button');
@@ -19,7 +21,7 @@
     <div class="leaderboard-card">
       <div class="leaderboard-heading"><div><small>TOP 10 · CANDY RICOCHET</small><h2 id="leaderboardTitle">分數排行榜</h2></div><button id="leaderboardClose" aria-label="關閉排行榜">×</button></div>
       <p id="leaderboardScore" class="leaderboard-score" hidden></p>
-      <div class="leaderboard-table-wrap" tabindex="0" role="region" aria-label="排行榜，可捲動查看前十名"><table class="leaderboard-table"><caption class="sr-only">最高十筆分數，同分時先登錄者在前</caption><thead><tr><th scope="col">名次</th><th scope="col">名字</th><th scope="col">分數</th></tr></thead><tbody id="leaderboardRows"></tbody></table></div>
+      <div class="leaderboard-table-wrap" tabindex="0" role="region" aria-label="排行榜，可捲動查看前十名"><table class="leaderboard-table"><caption class="sr-only">最高十筆分數，同分時先登錄者在前</caption><thead><tr><th scope="col">名次</th><th scope="col">名字</th><th scope="col">分數</th><th scope="col">到達關卡</th></tr></thead><tbody id="leaderboardRows"></tbody></table></div>
       <p id="leaderboardStatus" class="leaderboard-status" role="status" aria-live="polite"></p>
       <p id="leaderboardBackendNotice" class="leaderboard-status error" hidden></p>
       <form id="leaderboardForm" hidden>
@@ -45,7 +47,7 @@
     if (!Array.isArray(value) || value.length > 10 || value.some(e => !e || typeof e.name !== 'string' || e.name.length > 100 || !Number.isSafeInteger(e.score) || e.score <= 0)) {
       throw new Error('排行榜回傳格式不正確，請稍後重試。');
     }
-    return value.map(e => ({name: e.name, score: e.score})).sort((a, b) => b.score - a.score);
+    return value.map(e => ({name: e.name, score: e.score, level:Number.isSafeInteger(e.level)&&e.level>0?e.level:null})).sort((a, b) => b.score - a.score);
   }
 
   async function request(params, signal) {
@@ -76,8 +78,8 @@
     }
     result.entries = validEntries(result.entries);
     serverLimit = result.limit === 10 ? 10 : 5;
-    $('leaderboardBackendNotice').hidden = serverLimit === 10;
-    $('leaderboardBackendNotice').textContent = serverLimit === 10 ? '' : 'Google 排行榜後端尚待更新，目前仍僅保存前 5 名。';
+    $('leaderboardBackendNotice').hidden = serverLimit === 10 && result.levelSupported === true;
+    $('leaderboardBackendNotice').textContent = serverLimit === 10 ? (result.levelSupported===true?'':'Google 後端尚待更新「到達關卡」，請更新 Apps Script 部署。') : 'Google 排行榜後端尚待更新，目前仍僅保存前 5 名。';
     return result;
   }
 
@@ -86,7 +88,7 @@
     body.replaceChildren();
     entries.forEach((entry, index) => {
       const tr = document.createElement('tr');
-      [String(index + 1).padStart(2, '0'), entry.name, entry.score.toLocaleString()].forEach(value => {
+      [String(index + 1).padStart(2, '0'), entry.name, entry.score.toLocaleString(), entry.level===null?'—':String(entry.level)].forEach(value => {
         const td = document.createElement('td');
         td.textContent = value;
         tr.appendChild(td);
@@ -96,7 +98,7 @@
     });
     if (!entries.length) {
       const tr = document.createElement('tr'), td = document.createElement('td');
-      td.colSpan = 3;
+      td.colSpan = 4;
       td.className = 'leaderboard-empty';
       td.textContent = loaded ? '還沒有紀錄，等你來挑戰！' : '—';
       tr.appendChild(td);
@@ -111,7 +113,7 @@
 
   function controls() {
     $('leaderboardScore').hidden = !currentRun;
-    $('leaderboardScore').textContent = currentRun ? `本局得分 ${currentRun.score.toLocaleString()}` : '';
+    $('leaderboardScore').textContent = currentRun ? `本局得分 ${currentRun.score.toLocaleString()}${currentRun.level?' · 到達第 '+currentRun.level+' 關':''}` : '';
     $('leaderboardForm').hidden = !eligible() && !(saving || ambiguous);
     $('leaderboardName').disabled = saving || ambiguous;
     $('leaderboardSubmit').disabled = saving || loading;
@@ -180,7 +182,7 @@
     status('正在登錄分數，請稍候…');
     controls();
     try {
-      const result = await request({name, score: String(run.score), runId: run.id}, activeController.signal);
+      const result = await request({name, score: String(run.score), level:run.level?String(run.level):'', runId: run.id}, activeController.signal);
       if (version !== generation) return;
       if (typeof result.qualified !== 'boolean' || (result.qualified && (!Number.isInteger(result.rank) || result.rank < 1 || result.rank > 10))) throw new Error('登錄回應格式不正確。');
       entries = result.entries;
@@ -252,9 +254,9 @@
       openButton.textContent='♛ 查看分數排行榜';
       $('leaderboardName').value = '';
     },
-    finish(score) {
+    finish(score, level = null) {
       const id = window.crypto?.randomUUID?.() || 'game_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 15);
-      currentRun = {score, id, submitted: false};
+      currentRun = {score, level:Number.isSafeInteger(level)&&level>0?level:null, id, submitted: false};
       ambiguous = false;
       openButton.hidden = false;
       loaded = false;

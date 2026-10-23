@@ -8,6 +8,10 @@
 .toolbar button{flex-shrink:0}
 .toolbar .timer small{font-size:10px}
 .life-indicator{display:block;margin-top:5px;color:#ffb2cd;font-size:11px;line-height:14px;white-space:nowrap;font-weight:700;letter-spacing:0}
+.dev-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;padding:8px 10px;border:1px solid #ffd58588;border-radius:10px;background:#ffd58512;color:#ffe0a3;font-size:12px;line-height:1.5}
+.dev-tools[hidden]{display:none}
+.dev-tools button{flex-shrink:0;border:1px solid #ffd58588;border-radius:7px;padding:7px 9px;background:#342637;color:#ffe5b6;font:inherit;cursor:pointer;touch-action:manipulation}
+.dev-tools button:focus-visible{outline:2px solid #fff0ce;outline-offset:2px}
 #toast.suppressed{opacity:0;transition:none}
 .level-stats{margin:14px 0 22px;text-align:left;border-top:1px solid #ffffff22;font-variant-numeric:tabular-nums}
 .level-stats[hidden]{display:none}
