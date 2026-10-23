@@ -18,14 +18,14 @@
   const stepLength = 60 / 112 / 4;
   const musicVoices = new Set();
   let context, master, musicBus, fxBus, noiseBuffer, musicAnalyser;
-  let musicEnabled = true, effectsEnabled = false, unlocked = false;
+  let musicEnabled = true, effectsEnabled = true, unlocked = false;
   let scene = 'ready', finale = false, timer = null, nextTime = 0, step = 0;
   let lastEffect = -Infinity;
   const comboNotes = [72,74,76,77,79]; // do re mi fa sol, then hold sol.
   let lastComboMidi = null;
   try {
     musicEnabled = localStorage.getItem('candy-music') !== 'off';
-    effectsEnabled = localStorage.getItem('candy-effects') === 'on';
+    effectsEnabled = localStorage.getItem('candy-effects') !== 'off';
   } catch {}
 
   function ensureContext() {
