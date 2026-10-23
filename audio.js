@@ -16,6 +16,12 @@
   const chords = [[60,64,67,71],[60,64,67,71],[57,60,64,67],[57,60,64,67],
     [53,57,60,64],[53,57,60,64],[55,59,62,67],[55,59,62,67]];
   const stepLength = 60 / 112 / 4;
+  const finaleMelody = [
+    [84,79,84,88,86,84,79,76], [79,84,86,88,91,88,86,84],
+    [81,84,88,91,88,84,81,79], [84,88,86,84,81,79,76,79],
+    [81,84,89,88,86,84,81,77], [84,86,89,93,91,89,86,84],
+    [83,86,91,89,86,83,79,77], [79,83,86,91,86,83,79,83]
+  ];
   const musicVoices = new Set();
   let context, master, musicBus, fxBus, noiseBuffer, musicAnalyser;
   let musicEnabled = true, effectsEnabled = true, unlocked = false;
@@ -93,6 +99,23 @@
 
   function scheduleStep(index, at) {
     const bar = Math.floor(index / 16) % melody.length, beat = index % 16, chord = chords[bar % chords.length];
+    if (finale) {
+      const unit = 60 / 152 / 4;
+      if (beat % 2 === 0) note(finaleMelody[bar % 8][beat / 2],at,unit*1.45,.075);
+      if (beat % 2 === 0) note(chord[beat % 4 === 0 ? 0 : 2]-24,at,unit*1.4,.095);
+      if (beat === 0 || beat === 8) for(const midi of chord.slice(1,3)) note(midi,at,unit*2.4,.03,'triangle');
+      if (beat % 4 === 0) kick(at);
+      hat(at,beat === 4 || beat === 12);
+      if (beat === 4 || beat === 12) {
+        const source=context.createBufferSource(),gain=context.createGain(),filter=context.createBiquadFilter();
+        source.buffer=noiseBuffer;filter.type='bandpass';filter.frequency.value=1800;filter.Q.value=.65;
+        gain.gain.setValueAtTime(.07,at);gain.gain.exponentialRampToValueAtTime(.0001,at+.075);
+        source.connect(filter);filter.connect(gain);gain.connect(musicBus);voice(source,gain,at,.08,true);
+        const cleanup=source.onended;source.onended=()=>{filter.disconnect();cleanup();};
+      }
+      if (beat % 2 === 1) note(chord[Math.floor(beat/2)%4]+24,at,unit*.65,.021,'sine');
+      return;
+    }
     if (beat % 2 === 0) note(melody[bar][beat / 2], at, stepLength * 1.65, .075);
     if ([0,6,8,12].includes(beat)) note(chord[beat === 6 || beat === 12 ? 2 : 0] - 24, at, stepLength * 2.7, .09, 'triangle');
     if (beat === 0) for (const midi of chord.slice(1,3)) note(midi, at, stepLength * 12, .025, 'sine');
@@ -106,7 +129,7 @@
     if (nextTime < context.currentTime - .2) nextTime = context.currentTime + .02;
     while (nextTime < context.currentTime + .12) {
       scheduleStep(step, nextTime);
-      nextTime += stepLength;
+      nextTime += finale ? 60 / 152 / 4 : stepLength;
       step = (step + 1) % (melody.length * 16);
     }
   }
@@ -172,14 +195,19 @@
     reset() {stopMusic();step = 0;},
     setScene(mode, isFinale = false) {
       if (scene === mode && finale === isFinale) return;
+      const enteringFinale=isFinale&&!finale;
+      if (isFinale!==finale) {stopMusic();step=0;}
       if (mode === 'countdown' && scene === 'ready') step = 0;
       scene = mode;finale = isFinale;sync();
+      if(enteringFinale&&unlocked&&musicEnabled&&scene==='playing'&&context?.state==='running'){
+        [72,76,79,84].forEach((midi,i)=>note(midi,context.currentTime+.02+i*.055,.16,.065,'triangle'));
+      }
     },
     snapshot: () => {
       const samples = new Float32Array(1024);
       musicAnalyser?.getFloatTimeDomainData(samples);
       const rms = Math.sqrt(samples.reduce((sum,n) => sum + n*n, 0) / samples.length);
-      return {musicEnabled,effectsEnabled,unlocked,scene,finale,lastComboMidi,playing:timer !== null,step,voices:musicVoices.size,rms,contextState:context?.state || 'not-created'};
+      return {musicEnabled,effectsEnabled,unlocked,scene,finale,bpm:finale?152:112,lastComboMidi,playing:timer !== null,step,voices:musicVoices.size,rms,contextState:context?.state || 'not-created'};
     }
   };
 })();
