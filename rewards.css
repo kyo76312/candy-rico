@@ -1,0 +1,21 @@
+.toolbar{gap:2%;padding:0 5%}
+.toolbar .score{min-width:0}
+.toolbar .score b{font-size:18px;overflow-wrap:anywhere}
+.level-clock{min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+.level-clock small{font-size:10px;letter-spacing:0}
+.level-clock b{font-size:17px;color:#e2cdef;white-space:nowrap}
+.toolbar .timer{min-width:45px}
+.toolbar button{flex-shrink:0}
+.toolbar .timer small{font-size:10px}
+#toast.suppressed{opacity:0;transition:none}
+.level-stats{margin:14px 0 22px;text-align:left;border-top:1px solid #ffffff22;font-variant-numeric:tabular-nums}
+.level-stats[hidden]{display:none}
+.level-stats div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #ffffff0c;font-size:13px;color:#e4d4ee}
+.level-stats b{color:#ffe0ad}
+.level-stats div:nth-last-child(2){margin-top:4px;border-top:1px solid #ffffff33;font-weight:700}
+.level-stats div:last-child{font-size:16px;font-weight:700}
+.results .modal-icon{font-size:35px;margin:0 0 8px}
+.results .modal h2{font-size:23px;margin:8px 0}
+.results .modal p{font-size:12px;margin-bottom:6px}
+.results .modal{padding:18px 8px;width:87%}
+@media(max-width:360px){.toolbar{gap:2%;padding:0 4%}.toolbar small{font-size:9px}.toolbar b{font-size:17px}.toolbar .score b{font-size:16px}.level-clock{min-width:43px}.level-clock b{font-size:14px}.toolbar button{width:29px;height:29px}.toolbar .timer{min-width:40px}.level-stats div{font-size:12px;padding:5px 0}}
